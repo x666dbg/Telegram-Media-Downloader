@@ -4,9 +4,9 @@ from datetime import datetime
 from typing import List, Optional, Tuple, Set
 from rich.progress import Progress, BarColumn, TextColumn, DownloadColumn, TransferSpeedColumn, TimeRemainingColumn
 
-# ====== KONFIG WAJIB ======
-API_ID = 666 # Ganti dengan API ID Anda
-API_HASH = "YOUR_API_HASH_HERE" # Ganti dengan API Hash Anda
+# ========= CONFIG =========
+API_ID = 666 # Change to your API ID
+API_HASH = "YOUR_API_HASH_HERE" # Change to your API Hash
 SESSION_NAME = "tg_session"
 # ==========================
 today = datetime.today().strftime("%d-%m-%Y")
@@ -14,11 +14,11 @@ current_dir = os.getcwd()
 OUTPUT_DIR = os.path.join(current_dir, "result", today)
 # ==========================
 
-# ====== OPSI PEMINDAIAN ======
-BATCH_SIZE = 50      # jumlah media per halaman
-SINCE_DATE = None    # contoh: "2025-08-01" atau None
-HIDE_BOT_DM = True   # sembunyikan DM bot saat pilih chat
-# ============================
+# ========= OPTION =========
+BATCH_SIZE = 50      # how many items per page
+SINCE_DATE = None    # "YYYY-MM-DD" to filter messages, or None for no filter
+HIDE_BOT_DM = True   # hide direct messages with bots
+# ==========================
 
 from telethon import TelegramClient
 from telethon.errors import FloodWaitError
@@ -30,7 +30,7 @@ from telethon.tl.types import (
 try:
     import curses
 except Exception:
-    print("Gagal import curses. Di Windows, jalankan: pip install windows-curses")
+    print("Curses module not available. Please run this script in a terminal that supports curses.")
     raise
 
 def ensure_dir(p): os.makedirs(p, exist_ok=True)
@@ -175,7 +175,7 @@ def run_dialog_picker(dialogs: List) -> int:
         curses.curs_set(0)
         stdscr.keypad(True)
         h, w = stdscr.getmaxyx()
-        header = "Pilih chat (↑/↓ pindah, Enter pilih, q batal)"
+        header = "Dialog Picker - Press ↑/↓ to navigate, Q to quit, Enter to select"
         pad_top, pad_bottom = 2, 1
         page_size = max(5, h - (pad_top + pad_bottom + 1))
         idx = 0
@@ -216,13 +216,13 @@ def draw_media_page(stdscr, page_items: List[MediaItem], current_page: int, sele
     h, w = stdscr.getmaxyx()
     pad_top, pad_bottom = 3, 2
     page_height = max(5, h - (pad_top + pad_bottom + 1))
-    title = f"Media Picker | Page {current_page+1} (batch {BATCH_SIZE}) | W/S: atas/bawah, → pilih, ← batal, ↑ prev page, ↓ next page, Enter lanjut, q batal"
+    title = f"Media Picker | Page {current_page+1} (batch {BATCH_SIZE}) | W/S: up/down, → select, ← cancel, ↑ prev page, ↓ next page, Enter to continue, q to cancel"
     stdscr.clear()
     stdscr.addnstr(0, 0, title, w-1, curses.A_BOLD)
     stdscr.addnstr(1, 0, "-"*(w-1), w-1)
 
     if not page_items:
-        stdscr.addnstr(3, 2, "Tidak ada item pada halaman ini.", w-4)
+        stdscr.addnstr(3, 2, "No items on this page.", w-4)
         stdscr.refresh()
         return 0
 
@@ -285,8 +285,8 @@ async def resolve_entity(client: TelegramClient, ent):
 async def download_selected(items: List[MediaItem], out_dir: str):
     ensure_dir(out_dir)
     ok = fail = 0
-    print(f"\nMulai download {len(items)} file...")
-    print(f"Folder tujuan: {out_dir}")
+    print(f"\nDownloading {len(items)} file...")
+    print(f"Output directory: {out_dir}")
 
     progress = Progress(
         TextColumn("[bold blue]{task.fields[filename]}", justify="right"),
@@ -326,7 +326,7 @@ async def download_selected(items: List[MediaItem], out_dir: str):
 
             progress.remove_task(task_id)
 
-    print(f"\nSelesai. Sukses: {ok}, Gagal: {fail}")
+    print(f"\nDone. Success: {ok}, Failed: {fail}")
 
 async def main():
     client = TelegramClient(SESSION_NAME, API_ID, API_HASH)
@@ -334,13 +334,13 @@ async def main():
 
     dialogs = await list_dialogs(client)
     if not dialogs:
-        print("Tidak ada chat. Pastikan akun sudah join ke grup/channel.")
+        print("Nothing to show. No dialogs found.")
         await client.disconnect()
         return
 
     sel = run_dialog_picker(dialogs)
     if sel is None or sel < 0:
-        print("Dibatalkan.")
+        print("Cancelled.")
         await client.disconnect()
         return
 
@@ -349,7 +349,7 @@ async def main():
     shown = f"{title} ({kind})"
     uname = getattr(picked, "username", None)
     if uname: shown += f" @{uname}"
-    print(f"\nDipilih: {shown}")
+    print(f"\nSelected: {shown}")
 
     entity = await resolve_entity(client, picked)
 
@@ -361,7 +361,7 @@ async def main():
 
     page_items = await scanner.get_page(current_page)
     if not page_items:
-        print("Tidak ada media pada chat ini (atau di luar batas tanggal).")
+        print("No media items found in this dialog.")
         await client.disconnect()
         return
 
@@ -369,7 +369,7 @@ async def main():
         action, cursor, _ = media_picker_one_page(page_items, current_page, selected_ids, cursor)
 
         if action == 'quit':
-            print("Dibatalkan.")
+            print("Cancelled.")
             await client.disconnect()
             return
         elif action == 'confirm':
@@ -379,7 +379,7 @@ async def main():
                     if it.msg_id in selected_ids:
                         chosen.append(it)
             if not chosen:
-                print("Tidak ada file yang dipilih. Dibatalkan.")
+                print("No files selected. Cancelled.")
                 await client.disconnect()
                 return
             ensure_dir(OUTPUT_DIR)
@@ -409,4 +409,4 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        print("\nDihentikan oleh user.")
+        print("\nTerminated by user.")
